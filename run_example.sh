@@ -1,25 +1,28 @@
 source ~/.bashrc
-source ~/anaconda3/bin/activate
+source ~/miniconda/bin/activate
 conda activate mllm-efficiency
 
 # save result path
-ROOT_DIR="/result/0207_mp_docvqa"
-NUM_PROCESSES=1
+ROOT_DIR="./result/1212_qwen2vl_textvqa_others"
+NUM_PROCESSES=10
 
 export CONDA_DEFAULT_ENV="mllm-efficiency"
-export PATH="/home/anaconda3/envs/mllm-efficiency/bin:$PATH"
-export PYTHONPATH="/home/EffiVLM-Bench:/home/EffiVLM-Bench/lmms-eval"
+export PATH="/home/lyli/miniconda/envs/mllm-efficiency/bin:$PATH"
+export PYTHONPATH="/home/lyli/EffiVLM-Bench:/home/lyli/EffiVLM-Bench/lmms-eval:$PYTHONPATH"
 export OPENAI_API_URL=""
 export OPENAI_API_KEY=""
-export CUDA_VISIBLE_DEVICES="0,1,2"
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7,8,9"
 
+# unset HF_HUB_OFFLINE
+# unset TRANSFORMERS_OFFLINE
+# unset HF_DATASETS_OFFLINE
 
 BASE_COMMAND="python3 -m accelerate.commands.launch \
     --main_process_port=28176 \
     --mixed_precision=bf16 \
     --num_processes=$NUM_PROCESSES \
     -m lmms_eval \
-    --model llava_onevision_with_kvcache \
+    --model qwen2_vl_with_kvcache \
     --batch_size 1 \
     --log_samples"
 
@@ -31,32 +34,32 @@ BASE_COMMAND="python3 -m accelerate.commands.launch \
 METHODS=(
 
     # llava-onevision-qwen2 kv cache method for example
-    "h2o head head_adaptive=True"
-    "snapkv head head_adaptive=True,pooling=avgpool"
-    "pyramidkv head head_adaptive=True,pooling=avgpool"
-    "vl-cache head_layer vlcache_different_window_per_layer=False,vlcache_head_adaptive=True,layer_adaptive=True"
-    "look-m merge merge=True"
-    "random random"
-    "streamingllm streamingllm"
+    # "h2o head head_adaptive=True"
+    # "snapkv head head_adaptive=True,pooling=avgpool"
+    # "pyramidkv head head_adaptive=True,pooling=avgpool"
+    # "vl-cache head_layer vlcache_different_window_per_layer=False,vlcache_head_adaptive=True,layer_adaptive=True"
+    # "look-m merge merge=True"
+    # "random random"
+    # "streamingllm streamingllm"
 
     # llava-onevision-qwen2 token prune method for example
-    "fastv fastv"
-    "visionzip visionzip"
-    "prumerge+ prumerge+"
+    # "fastv fastv"
+    # "visionzip visionzip"
+    # "prumerge+ prumerge+"
 
     # Qwen2-VL kv cache method for example
-    # "h2o head head_adaptive=True,use_flash_attention_2=true"
-    # "snapkv head head_adaptive=True,pooling=avgpool,use_flash_attention_2=true"
-    # "pyramidkv head head_adaptive=True,pooling=avgpool,use_flash_attention_2=true"
-    # "look-m merge merge=True,use_flash_attention_2=true"
-    # "vl-cache head_layer vlcache_different_window_per_layer=False,vlcache_head_adaptive=True,layer_adaptive=True"
-    # "random random use_flash_attention_2=true"
-    # "streamingllm streamingllm use_flash_attention_2=true"
+    "h2o head head_adaptive=True,use_flash_attention_2=true,device_map=auto"
+    "snapkv head head_adaptive=True,pooling=avgpool,use_flash_attention_2=true"
+    "pyramidkv head head_adaptive=True,pooling=avgpool,use_flash_attention_2=true"
+    "look-m merge merge=True,use_flash_attention_2=true"
+    "vl-cache head_layer vlcache_different_window_per_layer=False,vlcache_head_adaptive=True,layer_adaptive=True"
+    "random random use_flash_attention_2=true"
+    "streamingllm streamingllm use_flash_attention_2=true"
 
     # Qwen2-VL token prune method for example
-    # "fastv fastv use_flash_attention_2=true"
-    # "visionzip visionzip use_flash_attention_2=true"
-    # "prumerge+ prumerge+ use_flash_attention_2=true"
+    "fastv fastv use_flash_attention_2=true"
+    "visionzip visionzip use_flash_attention_2=true"
+    "prumerge+ prumerge+ use_flash_attention_2=true"
 
     # InternVL2_5-38B kv cache method for example
     # "h2o head head_adaptive=True,device_map=auto"
@@ -78,11 +81,11 @@ METHODS=(
 BUDGETS=(0.05)
 
 # model path
-MODEL_PATH="/data/models/llava-onevision-qwen2-7b-ov"
-MODEL_NAME="ov"
+MODEL_PATH="/home/lyli/models/Qwen2-VL-7B-Instruct"
+MODEL_NAME="Qwen2-VL"
 
 
-TASKS=("multidocvqa")
+TASKS=("textvqa")
 
 for TASK in "${TASKS[@]}"; do
     for METHOD_CONFIG in "${METHODS[@]}"; do

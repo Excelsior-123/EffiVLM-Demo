@@ -2,7 +2,7 @@
 import sys
 import transformers
 from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
-from qwen2vl.modeling_qwen2_vl import Qwen2VLFlashAttention2, Qwen2VLModel
+from qwen2vl.modeling_qwen2_vl import Qwen2VLFlashAttention2, Qwen2VLModel, Qwen2VLAttention, Qwen2VLSdpaAttention
 from transformers.models.qwen2.modeling_qwen2 import Qwen2Model
 from .qwen_model import (
     qwen_attention_forward_streamingLLM,
@@ -79,14 +79,14 @@ def replace_qwen(args, model, method):
         for name, module in model.named_modules():
             if isinstance(module, Qwen2Attention):
                 module.forward = types.MethodType(qwen_attention_forward_streamingLLM, module)
-                module.budgets = args.budgets
+                module.budgets = getattr(args, 'budgets', 1.0)
     elif method == "h2o":
         print('using h2o')
         for name, module in model.named_modules():
             if isinstance(module, Qwen2Attention):
                 module.forward = types.MethodType(qwen_attention_forward_H2O, module)
-                module.budgets = args.budgets
-                module.h2o_head_adaptive = args.h2o_head_adaptive
+                module.budgets = getattr(args, 'budgets', 1.0)
+                module.h2o_head_adaptive = getattr(args, 'h2o_head_adaptive', getattr(args, 'head_adaptive', False))
 
     elif method == "vl-cache":
         print('using vlcache')
@@ -115,9 +115,9 @@ def replace_qwen(args, model, method):
         for name, module in model.named_modules():
             if isinstance(module, Qwen2Attention):
                 module.forward = types.MethodType(qwen_attention_forward_snapkv, module)
-                module.budgets = args.budgets
-                module.snapkv_head_adaptive = args.snapkv_head_adaptive
-                module.pooling = args.pooling
+                module.budgets = getattr(args, 'budgets', 1.0)
+                module.snapkv_head_adaptive = getattr(args, 'snapkv_head_adaptive', getattr(args, 'head_adaptive', True))
+                module.pooling = getattr(args, 'pooling', None)
 
     elif method == 'fastv':
         print('using fastv')
@@ -130,6 +130,7 @@ def replace_qwen(args, model, method):
                 module.target_layer_idx = getattr(args, 'target_layer_idx', 2)
                 module.budgets = getattr(args, 'budgets', 1.0)
                 module.origin = getattr(args, 'origin', False)
+                module.device = args.device
 
     # elif method == "csp":
     #     print('using csp')
@@ -153,9 +154,9 @@ def replace_qwen(args, model, method):
         for name, module in model.named_modules():
             if isinstance(module, Qwen2Attention):
                 module.forward = types.MethodType(qwen_attn_forward_PyramidKV, module)
-                module.budgets = args.budgets
-                module.pyramidkv_head_adaptive = args.pyramidkv_head_adaptive
-                module.pooling = args.pooling
+                module.budgets = getattr(args, 'budgets', 1.0)
+                module.pyramidkv_head_adaptive = getattr(args, 'pyramidkv_head_adaptive', getattr(args, 'head_adaptive', True))
+                module.pooling = getattr(args, 'pooling', None)
     
     elif method == 'random':
         print('using random')
@@ -216,7 +217,8 @@ def replace_qwen2vl(args, model, method):
             if isinstance(module, Qwen2VLFlashAttention2):
                 module.forward = types.MethodType(qwen_flash_attention_forward_H2O, module)
                 module.budgets = args.budgets
-                module.h2o_head_adaptive = args.h2o_head_adaptive
+                # module.h2o_head_adaptive = args.h2o_head_adaptive
+                module.h2o_head_adaptive = getattr(args, 'h2o_head_adaptive', getattr(args, 'head_adaptive', True))
 
     elif method == 'snapkv':
         print('using snapkv')
@@ -224,7 +226,8 @@ def replace_qwen2vl(args, model, method):
             if isinstance(module, Qwen2VLFlashAttention2):
                 module.forward = types.MethodType(qwen_flash_attention_forward_snapkv, module)
                 module.budgets = args.budgets
-                module.snapkv_head_adaptive = args.snapkv_head_adaptive
+                # module.snapkv_head_adaptive = args.snapkv_head_adaptive
+                module.snapkv_head_adaptive = getattr(args, 'snapkv_head_adaptive', getattr(args, 'head_adaptive', True))
                 module.pooling = args.pooling
 
     elif method == 'pyramidkv':
@@ -233,7 +236,8 @@ def replace_qwen2vl(args, model, method):
             if isinstance(module, Qwen2VLFlashAttention2):
                 module.forward = types.MethodType(qwen_flash_attention_forward_PyramidKV, module)
                 module.budgets = args.budgets
-                module.pyramidkv_head_adaptive = args.pyramidkv_head_adaptive
+                # module.pyramidkv_head_adaptive = args.pyramidkv_head_adaptive
+                module.pyramidkv_head_adaptive = getattr(args, 'pyramidkv_head_adaptive', getattr(args, 'head_adaptive', True))
                 module.pooling = args.pooling
 
     elif method == 'random':
@@ -279,6 +283,12 @@ def replace_qwen2vl(args, model, method):
         for name, module in model.named_modules():
             if isinstance(module, Qwen2VLFlashAttention2):
                 module.forward = types.MethodType(qwen_flash_attention_forward_vlcache, module)
+                module.vlcache_alpha_sparsity = getattr(args,'budgets',1.0)
+                module.vlcache_different_window_per_layer = getattr(args,'vlcache_different_window_per_layer',False)
+                module.vlcache_head_adaptive = getattr(args,'head_adaptive',False)
+                module.vlcache_budget_layer_adaptive = getattr(args, 'layer_adaptive', True)
+            elif isinstance(module, (Qwen2VLAttention, Qwen2VLSdpaAttention)):
+                module.forward = types.MethodType(qwen_attention_forward_vlcache, module)
                 module.vlcache_alpha_sparsity = getattr(args,'budgets',1.0)
                 module.vlcache_different_window_per_layer = getattr(args,'vlcache_different_window_per_layer',False)
                 module.vlcache_head_adaptive = getattr(args,'head_adaptive',False)

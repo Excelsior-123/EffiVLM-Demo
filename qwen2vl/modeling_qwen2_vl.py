@@ -325,9 +325,10 @@ class VisionMlp(nn.Module):
 
 
 class VisionAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int = 16) -> None:
+    def __init__(self, dim: int, num_heads: int = 16, layer_idx: int = -1) -> None:
         super().__init__()
         self.num_heads = num_heads
+        self.layer_idx = layer_idx
         self.head_dim = dim // num_heads
         self.qkv = nn.Linear(dim, dim * 3, bias=True)
         self.proj = nn.Linear(dim, dim)
@@ -384,9 +385,10 @@ class VisionFlashAttention2(nn.Module):
 
 
 class VisionSdpaAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int = 16) -> None:
+    def __init__(self, dim: int, num_heads: int = 16, layer_idx: int = -1) -> None:
         super().__init__()
         self.num_heads = num_heads
+        self.layer_idx = layer_idx
         self.qkv = nn.Linear(dim, dim * 3, bias=True)
         self.proj = nn.Linear(dim, dim)
 

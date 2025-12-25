@@ -1508,7 +1508,9 @@ def qwen_model_forward_fastv(
                         image_attention_score = last_attention.mean(dim=1)[0][-1][image_start:image_end + 1]    # FIXME 
                     else:
                         image_attention_score = last_attention.mean(dim=1)[0][:, image_start:image_end + 1].mean(dim=0)    # FIXME 
-                    top_attention_rank_index = image_attention_score.topk(max(1, int(image_length * ratio))).indices + image_start     
+                    
+                    # Ensure indices are on the same device as hidden_states
+                    top_attention_rank_index = image_attention_score.topk(max(1, int(image_length * ratio))).indices.to(device) + image_start     
                     keep_indexs = torch.cat((torch.arange(image_start,device=device), top_attention_rank_index, torch.arange(image_length+image_start,seq_length,device=device)))
                     keep_indexs = keep_indexs.sort().values
                     hidden_states = hidden_states[:,keep_indexs,:]

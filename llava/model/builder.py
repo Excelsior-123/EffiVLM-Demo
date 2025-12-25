@@ -28,6 +28,22 @@ from llava.model.language_model.sparse_llava_qwen import LlavaQwenSparseForCausa
 def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, device_map="auto", torch_dtype="bfloat16",attn_implementation="eager", customized_config=None, overwrite_config=None, use_sparse=False, **kwargs):
     kwargs["device_map"] = device_map
 
+    # Compatibility: if user explicitly enables Flash Attention via
+    # `use_flash_attention_2`, ensure `attn_implementation` matches to
+    # avoid transformers' _autoset_attn_implementation ValueError.
+    if "use_flash_attention_2" in kwargs:
+        val = kwargs.get("use_flash_attention_2")
+        enabled = False
+        if isinstance(val, bool):
+            enabled = val
+        elif isinstance(val, str):
+            enabled = val.lower() in ("true", "1", "yes")
+        if enabled and attn_implementation == "eager":
+            rank0_print("use_flash_attention_2 is True -> switching attn_implementation to 'flash_attention_2' to avoid transformers conflict")
+            attn_implementation = "flash_attention_2"
+        # remove the kwarg so we don't pass redundant/conflicting flags
+        kwargs.pop("use_flash_attention_2", None)
+
     if load_8bit:
         kwargs["load_in_8bit"] = True
     elif load_4bit:

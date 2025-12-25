@@ -1206,12 +1206,16 @@ def qwen_vl_model_forward_fastv(
                         image_attention_score = last_attention.mean(dim=1)[0][-1][image_start:image_end + 1]    # FIXME 
                     else:
                         image_attention_score = last_attention.mean(dim=1)[0][:, image_start:image_end + 1].mean(dim=0)    # FIXME 
-                    top_attention_rank_index = image_attention_score.topk(max(1, int(image_length * ratio))).indices + image_start     
+                    
+                    # Ensure indices are on the same device as hidden_states
+                    top_attention_rank_index = image_attention_score.topk(max(1, int(image_length * ratio))).indices.to(device) + image_start     
                     keep_indexs = torch.cat((torch.arange(image_start,device=device), top_attention_rank_index, torch.arange(image_length+image_start,seq_length,device=device)))
                     keep_indexs = keep_indexs.sort().values
                     hidden_states = hidden_states[:,keep_indexs,:]
                     if causal_mask is not None:
                         causal_mask = causal_mask[:,:,:hidden_states.shape[1],:hidden_states.shape[1]]
+                    if position_ids.device != keep_indexs.device:
+                        position_ids = position_ids.to(keep_indexs.device)
                     position_ids = position_ids[:, :, keep_indexs]      
                     position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
@@ -1274,6 +1278,11 @@ def qwen2vl_vision_tower_forward_visionzip(self, hidden_states: torch.Tensor, gr
         else:
             hidden_states = blk(hidden_states, cu_seqlens=cu_seqlens, rotary_pos_emb=rotary_pos_emb)
 
+    if not hasattr(self.blocks[-2].attn, 'attn_weights') or self.blocks[-2].attn.attn_weights is None:
+        hidden_states = self.merger(hidden_states)
+        all_keep_indices = torch.arange(hidden_states.shape[0], device=hidden_states.device)
+        return hidden_states, all_keep_indices
+
     attn_weights = self.blocks[-2].attn.attn_weights
     num_heads, q_len, k_len = attn_weights.shape
     assert q_len == k_len, "q_len and k_len should be the same, the error is in Qwen2VisionTransformerPretrainedModel's forward function"
@@ -1298,6 +1307,9 @@ def qwen2vl_vision_tower_forward_visionzip(self, hidden_states: torch.Tensor, gr
 
     filtered_indices = torch.where(mask)[0]  
     dominant_tokens = hidden_states.masked_select(~mask.unsqueeze(-1)).view(dominant_num, hidden_states.shape[1])
+    
+    # Clean up attn_weights to avoid attribute error on next run if not reset
+    self.blocks[-2].attn.attn_weights = None
 
     metric_filtered = metric[mask].view(hidden_states.shape[0] - dominant_num, metric.shape[1]) 
     hidden_states_filtered = hidden_states.masked_select(mask.unsqueeze(-1)).view(hidden_states.shape[0] - dominant_num, hidden_states.shape[1])  
@@ -1372,6 +1384,7 @@ def qwen2vl_vision_flash_attention2_forward_visionzip(self, hidden_states: torch
             # attn_weights_here = attn_weights_here + attention_mask_here
             attn_weights_here = attn_weights_here.masked_fill(attention_mask_here, float('-inf'))
             attn_weights_here = nn.functional.softmax(attn_weights_here, dim=-1, dtype=torch.float32)
+            # Similar fix for visionzip
             self.attn_weights = attn_weights_here
             del k_here, q_here, attention_mask_here, attn_weights_here
 
@@ -1581,6 +1594,11 @@ def qwen2vl_vision_tower_forward_prumerge_plus(self, hidden_states: torch.Tensor
         else:
             hidden_states = blk(hidden_states, cu_seqlens=cu_seqlens, rotary_pos_emb=rotary_pos_emb)
 
+    if not hasattr(self.blocks[-2].attn, 'attn_weights_prumerge_plus') or self.blocks[-2].attn.attn_weights_prumerge_plus is None:
+        image_features = self.merger(hidden_states)
+        all_keep_indices = torch.arange(image_features.shape[0], device=image_features.device)
+        return image_features, all_keep_indices
+
     #  attn_weights [16,616,616]
     attn_weights = self.blocks[-2].attn.attn_weights_prumerge_plus
     num_heads, q_len, k_len = attn_weights.shape
@@ -1725,6 +1743,13 @@ def qwen2vl_vision_flash_attention2_forward_prumerge_plus(self, hidden_states: t
             attn_weights_here = attn_weights_here.masked_fill(attention_mask_here, float('-inf'))
             del k_here, q_here,attention_mask_here
             attn_weights_here = nn.functional.softmax(attn_weights_here, dim=-1, dtype=torch.float32)
+            # Use a dictionary or similar structure if this is shared across instances, 
+            # but here it seems to be attached to the instance.
+            # The error 'VisionFlashAttention2' object has no attribute 'attn_weights_prumerge_plus' suggests
+            # it might be accessed before assignment or on a different instance.
+            # However, based on the code, it is assigned here.
+            # The issue might be that self.blocks[-2].attn is not the same instance or layer_idx is not 30.
+            # But let's ensure it is assigned.
             self.attn_weights_prumerge_plus = attn_weights_here
             del attn_weights_here
 

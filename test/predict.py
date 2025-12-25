@@ -26,6 +26,8 @@ import random
 
 logger = logging.getLogger(__name__)
 os.environ["WANDB_DISABLED"] = "true"
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
@@ -106,11 +108,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="A simple inference script to test token prune and kv cache compression methods.")
     # settings for path/basic
     parser.add_argument("--seed", type=int, default=42, help="")
-    parser.add_argument("--image_path", type=str, default="/home/zxwang/module/beifen/open_source/EffiVLM-Bench/test/llava_v1_5_radar.jpg")
+    parser.add_argument("--image_path", type=str, default="/home/lyli/EffiVLM-Bench/test/llava_v1_5_radar.jpg")
     parser.add_argument("--question", type=str, default="What is shown in this image?",help="the question to ask the model")
 
     # settings for model configuration
-    parser.add_argument('--pretrained', type=str, default="/home/zxwang/huggingface/Qwen2-VL-7B-Instruct", help='Pretrained model path or identifier.')
+    parser.add_argument('--pretrained', type=str, default="/home/lyli/models/Qwen2-VL-7B-Instruct", help='Pretrained model path or identifier.')
     parser.add_argument('--model_name', type=str, choices=['llava-onevision-qwen2',
                                                        'qwen2-vl', 
                                                        'internvl2_5'], help='Model name. such as llava-onevision-qwen2-7b-ov , Qwen2-VL-7B-Instruct , InternVL2_5-4B , InternVL2_5-38B.')
@@ -194,11 +196,12 @@ def load_model_qwen2vl(args, pretrained, model_name):
         pretrained,
         torch_dtype=args.torch_dtype,
         device_map=args.device_map,
-        attn_implementation="flash_attention_2", # flash_attention_2 for default
+        attn_implementation="flash_attention_2", 
+        local_files_only=True# flash_attention_2 for default
     ).eval()
 
-    qwen2vl_processor = Qwen2VLProcessor.from_pretrained(pretrained, max_pixels=args.max_pixels, min_pixels=args.min_pixels)
-    qwen2vl_tokenizer = AutoTokenizer.from_pretrained(pretrained)
+    qwen2vl_processor = Qwen2VLProcessor.from_pretrained(pretrained, max_pixels=args.max_pixels, min_pixels=args.min_pixels, local_files_only=True)
+    qwen2vl_tokenizer = AutoTokenizer.from_pretrained(pretrained, local_files_only=True)
 
     return model, qwen2vl_processor, qwen2vl_tokenizer
 
